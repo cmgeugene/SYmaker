@@ -157,7 +157,7 @@ def sync_sets(data: dict[str, Any]) -> dict[str, Any]:
     return data
 
 
-LAYOUT_RULES_VERSION = 4  # 배치 규칙이 바뀌면 올려서 기존 배치를 다시 만들게 한다
+LAYOUT_RULES_VERSION = 5  # 배치 규칙이 바뀌면 올려서 기존 배치를 다시 만들게 한다
 
 
 def content_hash(st: dict[str, Any], style: dict[str, Any] | None = None) -> str:
@@ -316,6 +316,7 @@ fills에는 바꿀 칸만 {{"slot": 칸 주소, "text": 넣을 텍스트}}로 �
 - 어법·어휘에서 틀린 것을 고르는 문항은 기호 줄 다음 줄(같은 하위 문항 안의 빈 문단)에 '바르게 고치기 : {{{{!틀린 표현 → 고친 표현}}}}'을 넣는다.
   양식에 그 줄이 이미 있으면 그 칸을 쓴다. 배점 '(n점)'은 양식에 적힌 대로 두며, 줄 서식과 배점은 출력 단계에서 앱 설정으로 맞춘다.
 - 서술형 질문 문장처럼 학생이 봐야 하는 내용은 감싸지 않는다.
+- 서술형 문항에 별도 질문(예: 'Question: …?')이 있으면 발문 칸에 '발문\n질문'처럼 발문 바로 다음 줄(빈 줄 없이)에 넣는다. 다른 칸에 넣지 않는다.
 - 삽입 문항의 주어진 문장 상자, <조 건>/<보 기> 상자: 첫 줄의 제목(**<조 건>** 등)을 유지하고 다음 줄부터 내용.
 - f.head: 앞쪽 박스 머리. 양식 예시처럼 '[{st['index']}] ' + 짧은 출처{'' if style['header_highlight'] else ' (형광펜 없이)'}. f.body: logic_flow를 한 줄씩, 단계 사이에 '↓' 줄을 넣어.{keyword_rule}
 - 텍스트 서식 표기: {MARKUP_RULES.splitlines()[1]} / {MARKUP_RULES.splitlines()[2]} / {MARKUP_RULES.splitlines()[3]}
