@@ -190,7 +190,7 @@ export interface FormSegment {
   notes: string
 }
 
-const SYMBOL_SETS = ['①②③④⑤⑥⑦⑧⑨⑩', '❶❷❸❹❺❻❼❽❾❿', 'ⓐⓑⓒⓓⓔⓕⓖⓗⓘⓙ', 'ⒶⒷⒸⒹⒺ', 'abcde', 'ABCDE']
+const SYMBOL_SETS = ['①②③④⑤⑥⑦⑧⑨⑩', '❶❷❸❹❺❻❼❽❾❿', 'ⓐⓑⓒⓓⓔⓕⓖⓗⓘⓙ', 'ⒶⒷⒸⒹⒺ', '㉠㉡㉢㉣㉤㉥㉦㉧㉨㉩', '㉮㉯㉰㉱㉲㉳㉴㉵㉶㉷', 'abcde', 'ABCDE']
 
 /** 정답 표기를 번호로: '3', '③', '❸', 'ⓒ' → 3. 알 수 없으면 NaN */
 export function answerIndex(answer: string): number {

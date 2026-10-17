@@ -186,6 +186,12 @@ def clean_item(it: dict[str, Any]) -> dict[str, Any]:
     """정답이 내용에 표시돼 새어 나가지 않도록 answer/extra/choices의 형광펜·굵게 표시를 지운다."""
 
     it["answer"] = ANSWER_MARK.sub("", str(it.get("answer", "")))
+    # 선택지가 5개인 문항은 정답을 '1'~'5' 숫자로 통일한다 (㉣, ❹, ⓒ 등 기호로 와도)
+    from .checks import answer_index
+
+    idx = answer_index(it["answer"])
+    if len(it.get("choices") or []) == 5 and idx and 1 <= idx <= 5:
+        it["answer"] = str(idx)
     it["extra"] = ANSWER_MARK.sub("", it.get("extra", ""))
     it["choices"] = [c.replace("==", "") for c in it.get("choices") or []]
     return it

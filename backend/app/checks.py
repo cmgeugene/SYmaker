@@ -11,7 +11,8 @@ from typing import Any
 from .hwpx_writer import strip_markup
 
 
-_SYMBOL_SETS = ("①②③④⑤⑥⑦⑧⑨⑩", "❶❷❸❹❺❻❼❽❾❿", "ⓐⓑⓒⓓⓔⓕⓖⓗⓘⓙ", "ⒶⒷⒸⒹⒺ", "abcde", "ABCDE")
+_SYMBOL_SETS = ("①②③④⑤⑥⑦⑧⑨⑩", "❶❷❸❹❺❻❼❽❾❿", "ⓐⓑⓒⓓⓔⓕⓖⓗⓘⓙ", "ⒶⒷⒸⒹⒺ",
+                "㉠㉡㉢㉣㉤㉥㉦㉧㉨㉩", "㉮㉯㉰㉱㉲㉳㉴㉵㉶㉷", "abcde", "ABCDE")
 
 
 def answer_index(answer: object) -> int | None:
