@@ -87,6 +87,7 @@ export function FormStyleCard({ wb, onSave, saving }: { wb: Workbook; onSave: (s
   useEffect(() => setSt(saved), [JSON.stringify(saved)]) // eslint-disable-line react-hooks/exhaustive-deps
   const dirty = JSON.stringify(st) !== JSON.stringify(saved)
   const segIndex = (id: string | null) => (wb.analysis?.form_segments || []).findIndex((s) => s.segment_id === id) + 1
+  const fixSegs = (wb.analysis?.form_segments || []).filter((s) => s.usage !== 'skip' && /어법|어휘/.test(s.type))
 
   return (
     <Card className="p-5">
@@ -120,6 +121,29 @@ export function FormStyleCard({ wb, onSave, saving }: { wb: Workbook; onSave: (s
               {[0, 1, 2, 3].map((n) => <option key={n} value={n}>{n}줄</option>)}
             </Select>
           </Field>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" className="size-4 accent-brand-600" checked={st.passage_answer_mark} onChange={(e) => setSt({ ...st, passage_answer_mark: e.target.checked })} />
+            지문 안의 정답 위치(삽입 ❶~❺, 어법 ㉠~㉤, 어휘 ⓐ~ⓔ)에도 형광펜 <span className="text-[11px] text-slate-400">(교사용만)</span>
+          </label>
+          {fixSegs.length > 0 && (
+            <div>
+              <div className="mb-1.5 text-[13px] font-medium text-slate-700">‘바르게 고치기’ 배점 <span className="font-normal text-slate-400">(줄 서식은 양식의 바르게 고치기 줄로 통일)</span></div>
+              <div className="space-y-1.5">
+                {fixSegs.map((sg) => (
+                  <div key={sg.segment_id} className="flex items-center gap-2 text-[13px]">
+                    <span className="min-w-0 flex-1 truncate text-slate-600">{segIndex(sg.segment_id)}번 문항 · {sg.type}</span>
+                    <div className="w-28 shrink-0">
+                      <Select className="!h-8 text-xs" value={String(st.fix_points[sg.segment_id] ?? '')}
+                        onChange={(e) => setSt({ ...st, fix_points: { ...st.fix_points, [sg.segment_id]: Number(e.target.value) || 0 } })}>
+                        <option value="">양식 그대로</option>
+                        {[1, 2, 3].map((n) => <option key={n} value={n}>{n}점</option>)}
+                      </Select>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
         <div className="space-y-4">
           {!!wb.form?.front_boxes && (
@@ -144,18 +168,30 @@ export function FormStyleCard({ wb, onSave, saving }: { wb: Workbook; onSave: (s
             </div>
           )}
           <div className="rounded-lg border border-slate-100 p-3">
-            <div className="mb-2 text-[13px] font-medium text-slate-700">상자 안 내용 정렬 <span className="font-normal text-slate-400">(제목 줄 제외)</span></div>
-            <div className="space-y-1.5">
+            <div className="mb-2 text-[13px] font-medium text-slate-700">상자 안 내용 <span className="font-normal text-slate-400">(정렬·글씨체는 제목 줄 제외, 줄간격은 모든 줄)</span></div>
+            <div className="space-y-3">
               {(wb.form?.boxes || []).map((bx) => (
-                <div key={bx.slot} className="flex items-center gap-2 text-[13px]">
-                  <span className="min-w-0 flex-1 truncate text-slate-600" title={bx.segment_instruction}>
+                <div key={bx.slot} className="space-y-1.5 text-[13px]">
+                  <div className="truncate text-slate-600" title={bx.segment_instruction}>
                     {bx.segment ? `${segIndex(bx.segment)}번 문항 · ` : ''}{bx.label === '내용 상자' && bx.segment_instruction ? bx.segment_instruction.slice(0, 18) + '… 상자' : bx.label}
-                  </span>
-                  <div className="w-28 shrink-0">
-                    <Select className="!h-8 text-xs" value={st.box_align[bx.slot] || ''}
-                      onChange={(e) => setSt({ ...st, box_align: { ...st.box_align, [bx.slot]: e.target.value as Align } })}>
-                      {Object.entries(ALIGNS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                    </Select>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="w-28 shrink-0">
+                      <Select className="!h-8 text-xs" value={st.box_align[bx.slot] || ''}
+                        onChange={(e) => setSt({ ...st, box_align: { ...st.box_align, [bx.slot]: e.target.value as Align } })}>
+                        {Object.entries(ALIGNS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                      </Select>
+                    </div>
+                    <div className="w-28 shrink-0">
+                      <Input className="!h-8 text-xs" type="number" step="10" min={80} max={400} placeholder="줄간격 % (양식 그대로)"
+                        value={st.box_line_spacing[bx.slot] ?? ''}
+                        onChange={(e) => setSt({ ...st, box_line_spacing: { ...st.box_line_spacing, [bx.slot]: Number(e.target.value) || 0 } })} />
+                    </div>
+                    <label className="flex items-center gap-1.5 text-xs text-slate-600">
+                      <input type="checkbox" className="size-4 accent-brand-600" checked={!!st.box_title_font[bx.slot]}
+                        onChange={(e) => setSt({ ...st, box_title_font: { ...st.box_title_font, [bx.slot]: e.target.checked } })} />
+                      제목 줄과 같은 글씨체
+                    </label>
                   </div>
                 </div>
               ))}

@@ -170,6 +170,10 @@ export interface FormStyle {
   gap_lines: number | null
   front_body: { size: number | null; align: Align; keyword_mark: boolean }
   box_align: Record<string, Align>
+  box_line_spacing: Record<string, number> // 칸 주소 → 줄간격 %
+  box_title_font: Record<string, boolean> // 칸 주소 → 내용 줄 글꼴을 제목 줄 글꼴로
+  fix_points: Record<string, number> // 하위 문항 id → '바르게 고치기' 배점
+  passage_answer_mark: boolean // 교사용: 지문 안 정답 위치(삽입·어법·어휘)에 형광펜
 }
 
 export const FORM_STYLE_DEFAULT: FormStyle = {
@@ -178,6 +182,10 @@ export const FORM_STYLE_DEFAULT: FormStyle = {
   gap_lines: 1,
   front_body: { size: null, align: '', keyword_mark: false },
   box_align: {},
+  box_line_spacing: {},
+  box_title_font: {},
+  fix_points: {},
+  passage_answer_mark: false,
 }
 
 export interface FormSegment {

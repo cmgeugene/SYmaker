@@ -81,6 +81,10 @@ def _check_set_markers(sets: list[dict[str, Any]], items: list[dict[str, Any]], 
                 if key in text and missing:
                     add(n, "high", "서식", f"{st.get('index')}번 지문에 {name} 표시가 없습니다 (빠진 기호: {''.join(missing)}).",
                         "문항이 가리키는 표시를 모두 공통 지문 안에 넣으세요.")
+                order = [c for c in passage if c in symbols]
+                if key in text and not missing and order[: len(symbols)] != list(symbols):
+                    add(n, "high", "서식", f"{st.get('index')}번 지문의 {name} 기호가 지문에 보이는 순서와 다릅니다 ({''.join(order)}).",
+                        "지문을 위에서부터 읽을 때 기호가 차례대로 나오도록 다시 붙이세요.")
             if "빈칸" in (it.get("type") or "") and "_____" not in passage:
                 add(n, "high", "서식", f"{st.get('index')}번 지문에 빈칸(__________)이 없습니다.", "빈칸을 공통 지문 안에 표시하세요.")
             if "순서" in (it.get("type") or "") and not all(f"({c})" in passage for c in "ABCD"):

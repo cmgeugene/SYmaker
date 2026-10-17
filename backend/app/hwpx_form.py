@@ -217,13 +217,18 @@ STYLE_DEFAULT: dict[str, Any] = {
     "gap_lines": 1,                    # 하위 문항 사이 빈 줄 수 (None이면 양식 그대로)
     "front_body": {"size": None, "align": "", "keyword_mark": False},  # 앞쪽 박스 아래 칸
     "box_align": {},                   # {칸 주소: LEFT|CENTER|RIGHT|JUSTIFY} — 제목 줄 아래 내용 줄에 적용
+    "box_line_spacing": {},            # {칸 주소: 줄간격 %} — 칸의 모든 줄
+    "box_title_font": {},              # {칸 주소: True} — 내용 줄 글꼴을 제목 줄(<조 건> 등) 글꼴로
+    "fix_points": {},                  # {하위 문항 id: 점수} — '바르게 고치기' 줄 배점 (없으면 양식·배치 그대로)
+    "passage_answer_mark": False,      # 교사용: 삽입·어법·어휘 정답 위치를 지문 안에서도 형광펜
 }
 
 
 def form_style(raw: dict[str, Any] | None) -> dict[str, Any]:
     st = {**STYLE_DEFAULT, **(raw or {})}
     st["front_body"] = {**STYLE_DEFAULT["front_body"], **((raw or {}).get("front_body") or {})}
-    st["box_align"] = dict((raw or {}).get("box_align") or {})
+    for k in ("box_align", "box_line_spacing", "box_title_font", "fix_points"):
+        st[k] = dict((raw or {}).get(k) or {})
     return st
 
 
@@ -272,6 +277,48 @@ def render_answers(text: str, teacher: bool, hidden_style: list[str] | None = No
     return ANSWER_RE.sub(rep, text)
 
 
+FIX_LINE = re.compile(r"^\s*바르게\s*고치기\s*:")
+_FIX_PARTS = re.compile(r"^\s*바르게\s*고치기\s*:\s*(.*?)\s*(?:\(\s*(\d+)\s*점\s*\))?\s*$", re.S)
+
+
+def normalize_fix_line(text: str, points: int | None) -> str:
+    """'바르게 고치기 : 답      (2점)' 줄의 긴 공백을 없애고 배점을 정한다 (서식은 양식 줄 모양이 정함)."""
+
+    m = _FIX_PARTS.match(text.replace("**", ""))
+    if not m:
+        return text
+    answer, old_pts = m.group(1).strip(), m.group(2)
+    pts = points or (int(old_pts) if old_pts else None)
+    return "바르게 고치기 : " + answer + (f" ({pts}점)" if pts else "")
+
+
+_PASSAGE_SYMBOLS = ("❶❷❸❹❺", "㉠㉡㉢㉣㉤", "ⓐⓑⓒⓓⓔ")
+
+
+def mark_passage_answers(passage: str, items: list[dict[str, Any]]) -> str:
+    """교사용: 삽입 위치·어법·어휘 문항의 정답 기호(와 밑줄 친 어구)를 지문 안에서 형광펜으로 표시한다."""
+
+    from .checks import answer_index
+
+    for it in items:
+        head = (it.get("instruction") or "") + " " + " ".join(it.get("choices") or [])
+        symbols = next((sy for sy in _PASSAGE_SYMBOLS if sy[0] in head), None)
+        idx = answer_index(str(it.get("answer", "")).strip().split(",")[0])
+        if not symbols or not idx or not 1 <= idx <= len(symbols):
+            continue
+        sym = re.escape(symbols[idx - 1])
+        for pat in (rf"\(\s*{sym}\s*\)", rf"{sym}\s*__(?:(?!__).)+?__", sym):
+            new, n = re.subn(pat, lambda m: "==" + m.group(0) + "==", passage, count=1)
+            if n:
+                passage = new
+                break
+    return passage
+
+
+def _text(p: etree._Element) -> str:
+    return "".join(t.text or "" for t in p.iter(HP + "t"))
+
+
 def _uid_all(el: etree._Element, b: Builder) -> None:
     for node in el.iter(HP + "p"):
         node.set("id", b._uid())
@@ -283,10 +330,68 @@ def _has_text(p: etree._Element) -> bool:
     return any((t.text or "").strip() or len(t) for t in p.iter(HP + "t"))
 
 
-def _fill_cell(tc: etree._Element, text: str, b: Builder, align: str | None = None, size_pt: float | None = None) -> None:
+class _ShapeVariants:
+    """문단 모양의 줄간격, 글자 모양의 글꼴만 바꾼 변형을 찾거나 새로 만든다."""
+
+    def __init__(self, header: etree._Element):
+        self.paras = header.find(".//" + HH + "paraProperties")
+        self.chars = header.find(".//" + HH + "charProperties")
+        self.cache: dict[tuple, str] = {}
+
+    @staticmethod
+    def _add(container: etree._Element, tag: str, el: etree._Element) -> str:
+        new_id = str(max(int(e.get("id", 0)) for e in container.findall(HH + tag)) + 1)
+        el.set("id", new_id)
+        container.append(el)
+        container.set("itemCnt", str(len(container.findall(HH + tag))))
+        return new_id
+
+    def line_spacing(self, pp_id: str, percent: int) -> str:
+        key = ("ls", pp_id, percent)
+        if key not in self.cache:
+            base = next((e for e in self.paras.findall(HH + "paraPr") if e.get("id") == pp_id), None)
+            spacings = list(base.iter(HH + "lineSpacing")) if base is not None else []
+            if not spacings or all(ls.get("type") == "PERCENT" and ls.get("value") == str(percent) for ls in spacings):
+                self.cache[key] = pp_id
+            else:
+                new = copy.deepcopy(base)
+                for ls in new.iter(HH + "lineSpacing"):
+                    ls.set("type", "PERCENT")
+                    ls.set("value", str(percent))
+                self.cache[key] = self._add(self.paras, "paraPr", new)
+        return self.cache[key]
+
+    def font_of(self, cp_id: str, font_cp_id: str) -> str:
+        """cp_id 글자 모양에 font_cp_id의 글꼴만 입힌다 (크기·굵게 등은 그대로)."""
+
+        key = ("font", cp_id, font_cp_id)
+        if key not in self.cache:
+            items = {e.get("id"): e for e in self.chars.findall(HH + "charPr")}
+            base, src = items.get(cp_id), items.get(font_cp_id)
+            if base is None or src is None or src.find(HH + "fontRef") is None or base.find(HH + "fontRef") is None:
+                self.cache[key] = cp_id
+            elif etree.tostring(base.find(HH + "fontRef")) == etree.tostring(src.find(HH + "fontRef")):
+                self.cache[key] = cp_id
+            else:
+                new = copy.deepcopy(base)
+                new.replace(new.find(HH + "fontRef"), copy.deepcopy(src.find(HH + "fontRef")))
+                self.cache[key] = self._add(self.chars, "charPr", new)
+        return self.cache[key]
+
+
+def _first_text_cp(p: etree._Element) -> str | None:
+    for r in p.findall(HP + "run"):
+        if "".join(r.itertext()).strip():
+            return r.get("charPrIDRef")
+    return None
+
+
+def _fill_cell(tc: etree._Element, text: str, b: Builder, align: str | None = None, size_pt: float | None = None,
+               line_spacing: int | None = None, title_font: bool = False, shapes: "_ShapeVariants | None" = None) -> None:
     """칸 내용을 줄마다 문단으로 채운다.
     양식 칸의 첫 문단에 제목(예: <조 건>)이 있으면 첫 줄은 그 모양으로, 나머지 줄은 둘째 문단 모양으로 쓴다.
-    align/size_pt를 주면 (제목 줄을 뺀) 내용 줄에 적용한다."""
+    align/size_pt를 주면 (제목 줄을 뺀) 내용 줄에 적용한다.
+    line_spacing(%)은 칸의 모든 줄에, title_font는 내용 줄의 글꼴을 제목 줄 글꼴로 맞출 때 쓴다."""
 
     from .hwpx_writer import restyle_paragraph
 
@@ -296,15 +401,21 @@ def _fill_cell(tc: etree._Element, text: str, b: Builder, align: str | None = No
     sub = paras[0].getparent()
     titled = _has_text(paras[0])
     title_proto, body_proto = paras[0], (paras[1] if len(paras) > 1 else paras[0])
+    title_cp = _first_text_cp(title_proto) if titled else None
     for q in paras:
         sub.remove(q)
     for i, line in enumerate(text.split("\n") if text else [""]):
         is_title = titled and i == 0
         q = copy.deepcopy(title_proto if (is_title or not titled) else body_proto)
         q.set("id", b._uid())
+        if shapes is not None and title_font and title_cp and not is_title:
+            for r in q.findall(HP + "run"):
+                r.set("charPrIDRef", shapes.font_of(r.get("charPrIDRef", "0"), title_cp))
         b._fill_plain(q, line)
         if not is_title and (align or size_pt):
             restyle_paragraph(q, b.styles, b.para_styles, align, size_pt)
+        if shapes is not None and line_spacing:
+            q.set("paraPrIDRef", shapes.line_spacing(q.get("paraPrIDRef", "0"), int(line_spacing)))
         sub.append(q)
 
 
@@ -404,13 +515,29 @@ def build_form(
     numbering = _ChoiceNumbering(b.header, b.hdr)
     gap = st_cfg.get("gap_lines")
     box_align = st_cfg["box_align"]
+    shapes = _ShapeVariants(b.header)
+    # '바르게 고치기' 줄은 모두 양식의 바르게 고치기 줄 모양(문단·글자)으로 통일한다
+    fix_proto = next((p for p in proto if FIX_LINE.match(_text(p)) and not _direct_tables(p)), None)
 
     built: list[etree._Element] = []
     for i, st in enumerate(sets):
         layout = st.get("layout") or {}
-        fills = {k: render_answers(v, teacher, st_cfg["hidden_style"]) for k, v in (layout.get("fills") or {}).items()}
+        raw = dict(layout.get("fills") or {})
+        if teacher and st_cfg["passage_answer_mark"] and form.get("passage_slot") in raw:
+            raw[form["passage_slot"]] = mark_passage_answers(raw[form["passage_slot"]], st.get("items") or [])
+        fix_slots = set()
+        for key, v in raw.items():
+            k = int(key[1:]) if re.fullmatch(r"b\d+", key) else None
+            if k is not None and FIX_LINE.match(v.replace("**", "")):
+                sid = next((sg["id"] for sg in segs if sg["start"] <= k < sg["end"]), None)
+                raw[key] = normalize_fix_line(v, st_cfg["fix_points"].get(sid) if sid else None)
+                fix_slots.add(k)
+        fills = {k: render_answers(v, teacher, st_cfg["hidden_style"]) for k, v in raw.items()}
         removed = set(layout.get("remove_segments") or [])
         block = [copy.deepcopy(p) for p in proto]
+        for k in fix_slots:
+            if fix_proto is not None and k < len(block):
+                block[k] = copy.deepcopy(fix_proto)
         for k, p in enumerate(block):
             _uid_all(p, b)
             if f"b{k}" in fills:
@@ -419,7 +546,9 @@ def build_form(
                 for r, c, tc in _cells(tbl):
                     key = f"b{k}.t{j}.r{r}c{c}"
                     if key in fills:
-                        _fill_cell(tc, fills[key], b, box_align.get(key) or None)
+                        _fill_cell(tc, fills[key], b, box_align.get(key) or None,
+                                   line_spacing=st_cfg["box_line_spacing"].get(key) or None,
+                                   title_font=bool(st_cfg["box_title_font"].get(key)), shapes=shapes)
 
         # 머리·지문 영역 + (정한 순서대로) 하위 문항. 문항 끝 빈 줄은 정리하고 gap_lines만큼 넣는다.
         out = block[:first_seg]
