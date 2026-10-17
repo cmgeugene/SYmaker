@@ -1,0 +1,10 @@
+data/
+backend/.venv/
+frontend/node_modules/
+frontend/dist/
+.playwright-mcp/
+__pycache__/
+
+# 로컬 전용
+.DS_Store
+*.pyc
