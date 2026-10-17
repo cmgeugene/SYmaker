@@ -281,7 +281,8 @@ async def review(ctx: Ctx, rule_result: dict[str, Any]) -> dict[str, Any]:
 
 # ---------------------------------------------------------------- 수정
 
-REQ_NUM = re.compile(r"^\[(\d+)번")
+REQ_NUM = re.compile(r"^\[(\d+)번(?! 지문)")
+REQ_SET = re.compile(r"^\[(\d+)번 지문\]")  # 양식 모드: 검수가 지문 세트 전체에 낸 지적
 
 
 async def revise(ctx: Ctx, requests: list[str]) -> dict[str, Any]:
@@ -459,7 +460,11 @@ async def review_form(ctx: Ctx, rule_result: dict[str, Any]) -> dict[str, Any]:
     summary = " / ".join(f"[{jobs[i][0]}] {r.get('summary', '')}" for i, r in enumerate(results) if not isinstance(r, Exception))
     if failed:
         summary += f" (검수 실패: {', '.join(failed)})"
-    return {"summary": summary, "score": round(sum(r.get("score", 0) for r in ok) / len(ok)), "issues": [i for r in ok for i in r.get("issues", [])]}
+    # 세트 전체 지적(number 0)은 어느 지문 것인지 남겨야 수정 때 그 지문에만 전달된다
+    sets = data.get("sets", [])
+    issues = [{**i, "set": sets[k]["index"]} if not i.get("number") else i
+              for k, r in enumerate(results) if not isinstance(r, Exception) for i in r.get("issues", [])]
+    return {"summary": summary, "score": round(sum(r.get("score", 0) for r in ok) / len(ok)), "issues": issues}
 
 
 async def revise_form(ctx: Ctx, requests: list[str]) -> dict[str, Any]:
@@ -472,13 +477,17 @@ async def revise_form(ctx: Ctx, requests: list[str]) -> dict[str, Any]:
     set_of = {q["number"]: q.get("set") for q in qs}
     targeted: dict[int, list[str]] = {}
     general: list[str] = []
+    sets = data.get("sets", [])
+    set_ids = {str(st["index"]) for st in sets}
     for r in requests:
-        m = REQ_NUM.match(r)
-        if m and int(m.group(1)) in set_of:
+        m, ms = REQ_NUM.match(r), REQ_SET.match(r)
+        if ms and ms.group(1) in set_ids:
+            key = next(st["index"] for st in sets if str(st["index"]) == ms.group(1))
+            targeted.setdefault(key, []).append(r)
+        elif m and int(m.group(1)) in set_of:
             targeted.setdefault(set_of[int(m.group(1))], []).append(r)
         else:
             general.append(r)
-    sets = data.get("sets", [])
     targets = sets if general else [st for st in sets if st["index"] in targeted]
     ctx.log(f"수정 대상 지문 세트 {len(targets)}개" + (" (전체 요청 포함)" if general else ""))
 

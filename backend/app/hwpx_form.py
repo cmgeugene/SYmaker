@@ -31,7 +31,7 @@ from typing import Any
 
 from lxml import etree
 
-from .hwpx_io import HP, HwpxPackage, NUM_FORMAT_LABELS, describe_heading, paragraph_text, parse_header
+from .hwpx_io import HH, HP, HwpxPackage, NUM_FORMAT_LABELS, describe_heading, paragraph_text, parse_header
 from .hwpx_writer import Builder
 
 BLOCK_START = re.compile(r"^\s*\[\s*(\d+)\s*\]")
@@ -312,6 +312,57 @@ def _is_blank(p: etree._Element) -> bool:
     return not _has_text(p) and p.find(".//" + HP + "tbl") is None and p.find(".//" + HP + "ctrl") is None
 
 
+class _ChoiceNumbering:
+    """선택지 자동 번호(①~⑤)를 문항마다 새로 시작하게 한다.
+    한글은 같은 번호 정의(numbering id)를 쓰는 문단을 문서 끝까지 이어 세므로,
+    두 번째로 나오는 선택지 묶음부터는 번호 정의와 문단 모양을 복제해 새 목록으로 만든다."""
+
+    def __init__(self, header: etree._Element, hdr: dict[str, Any]):
+        self.hdr = hdr
+        self.numberings = header.find(".//" + HH + "numberings")
+        self.paras = header.find(".//" + HH + "paraProperties")
+        self.used: set[str] = set()
+
+    def _next_id(self, container: etree._Element, tag: str) -> str:
+        return str(max([int(e.get("id", 0)) for e in container.findall(HH + tag)] + [0]) + 1)
+
+    def restart(self, part: list[etree._Element]) -> None:
+        if self.numberings is None or self.paras is None:
+            return
+        remap: dict[str, str] = {}  # 이 문항 안: 원래 paraPr id → 새 paraPr id
+        new_num: dict[str, str] = {}  # 원래 numbering id → 새 numbering id
+        for p in part:
+            pid = p.get("paraPrIDRef")
+            pp = self.hdr["para_prs"].get(pid)
+            if not pp or pp["heading_type"] != "NUMBER" or _heading_format(p, self.hdr) not in CHOICE_FORMATS:
+                continue
+            nid = pp["heading_id"] or ""
+            if nid not in self.used:  # 문서에서 처음 쓰이는 목록은 그대로 둔다
+                self.used.add(nid)
+                new_num[nid] = nid
+            if new_num.get(nid) == nid:
+                continue
+            if nid not in new_num:
+                src = next((n for n in self.numberings.findall(HH + "numbering") if n.get("id") == nid), None)
+                if src is None:
+                    new_num[nid] = nid
+                    continue
+                dup = copy.deepcopy(src)
+                dup.set("id", self._next_id(self.numberings, "numbering"))
+                self.numberings.append(dup)
+                self.numberings.set("itemCnt", str(len(self.numberings.findall(HH + "numbering"))))
+                new_num[nid] = dup.get("id")
+            if pid not in remap:
+                src = next(e for e in self.paras.findall(HH + "paraPr") if e.get("id") == pid)
+                dup = copy.deepcopy(src)
+                dup.set("id", self._next_id(self.paras, "paraPr"))
+                dup.find(".//" + HH + "heading").set("idRef", new_num[nid])
+                self.paras.append(dup)
+                self.paras.set("itemCnt", str(len(self.paras.findall(HH + "paraPr"))))
+                remap[pid] = dup.get("id")
+            p.set("paraPrIDRef", remap[pid])
+
+
 def build_form(
     *,
     template: Path,
@@ -348,7 +399,9 @@ def build_form(
     seg_ids = [sg["id"] for sg in segs]
     order = [sid for sid in (order or []) if sid in seg_ids] + [sid for sid in seg_ids if sid not in (order or [])]
     first_seg = segs[0]["start"] if segs else len(proto)
-    blank_proto = next((copy.deepcopy(p) for k, p in enumerate(proto) if k >= first_seg and _is_blank(p)), None)
+    # 빈 줄은 자동 번호가 없는 빈 문단으로 (번호 달린 빈 선택지 칸을 쓰면 ⑥⑦… 이 찍힌다)
+    blank_proto = next((copy.deepcopy(p) for k, p in enumerate(proto) if k >= first_seg and _is_blank(p) and not _heading_format(p, b.hdr)), None)
+    numbering = _ChoiceNumbering(b.header, b.hdr)
     gap = st_cfg.get("gap_lines")
     box_align = st_cfg["box_align"]
 
@@ -375,6 +428,7 @@ def build_form(
                 continue
             sg = next(x for x in segs if x["id"] == sid)
             part = block[sg["start"]:sg["end"]]
+            numbering.restart(part)
             if gap is not None:
                 while len(part) > 1 and _is_blank(part[-1]):
                     part.pop()

@@ -238,6 +238,7 @@ export interface Issue {
   message: string
   suggestion: string
   source: 'rule' | 'model'
+  set?: number | string // 양식 모드: 지문 세트 전체 지적이면 그 지문 번호
 }
 
 export interface Review {

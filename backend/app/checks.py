@@ -61,6 +61,35 @@ def similarity(a: str, b: str) -> float:
     return difflib.SequenceMatcher(None, wa, wb, autojunk=False).ratio()
 
 
+# 양식 모드: 문항이 가리키는 표시가 공통 지문(passage)에 실제로 있는지
+_MARKER_RULES = (
+    ("❶", "❶❷❸❹❺", "삽입 위치 ( ❶ )~( ❺ )"),
+    ("㉠", "㉠㉡㉢㉣㉤", "어법 밑줄 ㉠~㉤"),
+    ("ⓐ", "ⓐⓑⓒⓓⓔ", "어휘 표시 ⓐ~ⓔ"),
+)
+_SPLIT_PASSAGE = re.compile(r"전용 지문|문항용 본문|독립된 시험지|제시 단위|분리 출제|별도 회차")
+
+
+def _check_set_markers(sets: list[dict[str, Any]], items: list[dict[str, Any]], add: Any) -> None:
+    for st in sets:
+        passage = st.get("passage") or ""
+        for it in st.get("items") or []:
+            n = next((q.get("number", 0) for q in items if q.get("set") == st.get("index") and q.get("segment_id") == it.get("segment_id")), 0)
+            text = " ".join([it.get("instruction") or "", *(it.get("choices") or [])])
+            for key, symbols, name in _MARKER_RULES:
+                missing = [s for s in symbols if s not in passage]
+                if key in text and missing:
+                    add(n, "high", "서식", f"{st.get('index')}번 지문에 {name} 표시가 없습니다 (빠진 기호: {''.join(missing)}).",
+                        "문항이 가리키는 표시를 모두 공통 지문 안에 넣으세요.")
+            if "빈칸" in (it.get("type") or "") and "_____" not in passage:
+                add(n, "high", "서식", f"{st.get('index')}번 지문에 빈칸(__________)이 없습니다.", "빈칸을 공통 지문 안에 표시하세요.")
+            if "순서" in (it.get("type") or "") and not all(f"({c})" in passage for c in "ABCD"):
+                add(n, "high", "서식", f"{st.get('index')}번 지문이 (A)~(D) 문단으로 나뉘어 있지 않습니다.", "공통 지문을 (A) 다음 섞인 (B)(C)(D) 문단으로 제시하세요.")
+            if _SPLIT_PASSAGE.search(it.get("extra") or ""):
+                add(n, "high", "서식", f"{st.get('index')}번 지문: 추가 정보에 문항 전용 지문이나 시험지 분리 지시가 있습니다 (출력되지 않음).",
+                    "전용 지문과 편성 지시를 지우고 공통 지문 하나에 모든 표시를 넣으세요.")
+
+
 def run_checks(
     questions: dict[str, Any] | None,
     spec: dict[str, Any] | None,
@@ -140,6 +169,9 @@ def run_checks(
         for name, cnt in wanted.items():
             if cnt and got.get(name, 0) != cnt:
                 add(0, "medium", "지침", f"'{name}' 유형이 {got.get(name, 0)}문항입니다 (목표 {cnt}).")
+
+    if form_mode:
+        _check_set_markers((questions or {}).get("sets") or [], items, add)
 
     # 여러 문항이 같은 지문을 그대로 쓰는지 (다른 포인트를 묻는 건 괜찮지만 확인용)
     seen: dict[str, int] = {}

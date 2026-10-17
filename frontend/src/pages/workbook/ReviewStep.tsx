@@ -27,7 +27,7 @@ export default function ReviewStep({ wb, startJob, jobRunning, goto }: StepProps
   const fixSelected = (o: { model: string; effort: string }) => {
     const requests = [...picked].map((i) => {
       const it = issues[i]
-      return `${it.number ? `[${it.number}번 문항] ` : '[전체] '}(${it.category}) ${it.message}${it.suggestion ? ` → 제안: ${it.suggestion}` : ''}`
+      return `${it.number ? `[${it.number}번 문항] ` : it.set ? `[${it.set}번 지문] ` : '[전체] '}(${it.category}) ${it.message}${it.suggestion ? ` → 제안: ${it.suggestion}` : ''}`
     })
     startJob('revise', { ...o, requests })
     setPicked(new Set())
@@ -135,7 +135,7 @@ function IssueList({ issues, picked, toggle, selectable, qs }: { issues: Issue[]
       {issues.map((it, i) => (
         <label key={i} className={cx('flex gap-3 px-4 py-3', selectable && 'cursor-pointer hover:bg-slate-50', picked.has(i) && 'bg-brand-50/50')}>
           {selectable && <input type="checkbox" className="mt-1 size-4 accent-brand-600" checked={picked.has(i)} onChange={() => toggle(i)} />}
-          <div className="w-20 shrink-0 text-sm font-semibold text-slate-700">{it.number ? label(it.number) : '전체'}</div>
+          <div className="w-20 shrink-0 text-sm font-semibold text-slate-700">{it.number ? label(it.number) : it.set ? `${it.set}번 지문` : '전체'}</div>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-1.5">
               <Badge color={SEV[it.severity]?.color || 'slate'}>{SEV[it.severity]?.label || it.severity}</Badge>
