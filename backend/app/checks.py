@@ -126,7 +126,7 @@ def run_checks(
                 add(n, "medium", "서식", "서술형인데 선택지가 있습니다.")
             if not strip_markup(str(q.get("answer", ""))).strip():
                 add(n, "high", "정답", "서술형 모범답안이 비어 있습니다.")
-            if not (q.get("rubric") or "").strip():
+            if not form_mode and not (q.get("rubric") or "").strip():  # 양식에는 채점 기준 칸이 없다
                 add(n, "medium", "정답", "서술형 채점 기준이 비어 있습니다.", "부분 점수를 포함한 채점 기준을 적으세요.")
         elif not choices and not form_mode:
             add(n, "high", "서식", "객관식인데 선택지가 없습니다.")
