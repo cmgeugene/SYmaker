@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, LayoutTemplate, Paintbrush } from 'lucide-react'
 import { FORM_STYLE_DEFAULT, type Align, type FormSegment, type FormSet, type FormStyle, type Question, type Workbook } from '../../api'
-import { Badge, Button, Card, Field, Input, Select, cx } from '../../components/ui'
+import { Badge, Button, Card, Field, Input, Select, Textarea, cx } from '../../components/ui'
 import { CIRCLED, Markup } from '../../components/Markup'
 import { QuestionCard } from '../../components/QuestionCard'
 
@@ -59,6 +59,10 @@ export function FormSegmentsCard({ wb, onSave, saving }: { wb: Workbook; onSave:
               </div>
               <p className="mt-0.5 truncate text-xs text-slate-500">{instr(s.segment_id)}</p>
               {s.answer_format && <p className="mt-0.5 text-[11px] text-slate-400">정답 표기: {readable(s.answer_format)}</p>}
+              {s.usage !== 'skip' && (
+                <Textarea rows={2} className="mt-1.5 !py-1.5 text-xs" placeholder="출제 메모 (지문 표시 기호, 요구사항 등 — 제작·검수에 그대로 들어갑니다)"
+                  value={s.notes} onChange={(e) => setSegs(segs.map((x, j) => (j === i ? { ...x, notes: e.target.value } : x)))} />
+              )}
             </div>
             <div className="w-32 shrink-0">
               <Select className="!h-8 text-xs" value={s.usage} onChange={(e) => setSegs(segs.map((x, j) => (j === i ? { ...x, usage: e.target.value as FormSegment['usage'] } : x)))}>

@@ -150,6 +150,11 @@ export default function GenerateStep({ wb, startJob, jobRunning, goto, reload }:
         <Card className="p-5 lg:col-span-2">
           <h3 className="mb-1 flex items-center gap-2 font-semibold text-slate-900"><BookMarked className="size-4 text-slate-400" /> 적용할 지침</h3>
           <p className="mb-3 text-xs text-slate-500">
+            {selected.length === 0 && (
+              <span className="mb-2 block rounded bg-amber-50 px-2 py-1.5 text-amber-800">
+                선택된 지침이 없습니다. 지침 없이 제작·검수하면 샘플 스타일과 앱 기본 규칙만 따릅니다.
+              </span>
+            )}
             이 프로젝트의 지침(기본 + 프로젝트 전용)에서 고르세요.{' '}
             <Link to={`/guidelines?project=${wb.project_id}`} className="text-brand-600 hover:underline">프로젝트 지침 관리 →</Link>
           </p>

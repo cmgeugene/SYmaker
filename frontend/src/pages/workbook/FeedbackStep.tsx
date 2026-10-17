@@ -246,11 +246,21 @@ function Proposals({ job, workbookId, projectId, onApplied }: { job: Job; workbo
                     </button>
                   ))}
                 </div>
+                {scopes[i] === 'default' && (
+                  <p className="mt-1.5 rounded bg-amber-50 px-2 py-1 text-[11px] text-amber-800">
+                    모든 프로젝트의 문제집에 적용됩니다. 특정 양식·학년에만 해당하는 규칙이면 ‘이 프로젝트만’을 고르세요.
+                  </p>
+                )}
                 <pre className="mt-2 max-h-40 overflow-y-auto rounded bg-white p-2 font-sans text-xs whitespace-pre-wrap text-slate-700 ring-1 ring-slate-100">{u.new_content}</pre>
               </label>
             )
           })}
-          <Button className="w-full" variant="primary" disabled={!chosen.size && !chosenMats.size} loading={busy === 'apply'} onClick={() =>
+          <Button className="w-full" variant="primary" disabled={!chosen.size && !chosenMats.size} loading={busy === 'apply'} onClick={async () => {
+            const toDefault = updates.filter((_, i) => chosen.has(i) && scopes[i] === 'default')
+            if (toDefault.length) {
+              const n = (await api.get<unknown[]>('/projects')).length
+              if (!window.confirm(`기본 지침 ${toDefault.length}건을 바꾸면 이 프로젝트뿐 아니라 모든 프로젝트(${n}개)의 문제집에 적용됩니다.\n특정 양식·학년에만 해당하는 규칙이라면 '이 프로젝트만'을 고르세요.\n\n그래도 기본 지침을 바꿀까요?`)) return
+            }
             run('apply', async () => {
               await api.post('/guidelines/apply', {
                 updates: updates.map((u, i) => ({ ...u, scope: scopes[i] || 'project' })).filter((_, i) => chosen.has(i)),
@@ -260,7 +270,7 @@ function Proposals({ job, workbookId, projectId, onApplied }: { job: Job; workbo
               setAppliedJob(job.id)
               await onApplied()
             }, '선택한 제안을 반영했습니다.')
-          }>
+          }}>
             선택한 {chosen.size + chosenMats.size}건 반영
           </Button>
         </div>

@@ -122,4 +122,7 @@ def remove(gid: int) -> None:
 
 
 def default_selection(project_id: int) -> list[int]:
-    return [g["id"] for g in effective(project_id) if g["category"] == "공통"]
+    """새 문제집의 기본 지침 선택: 비워 둔다. 양식·학년마다 맞는 지침이 달라서 사용자가 직접 고른다.
+    (예전에는 '공통' 분류를 자동으로 체크했는데, KSC처럼 다른 규칙을 쓰는 양식과 충돌했다)"""
+
+    return []
