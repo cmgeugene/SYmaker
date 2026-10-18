@@ -215,7 +215,8 @@ STYLE_DEFAULT: dict[str, Any] = {
     "header_highlight": True,          # 블록 머리의 출처 표기에 형광펜
     "hidden_style": ["highlight", "bold", "white"],   # {{!숨긴 정답}} 서식 (underline 추가 가능)
     "gap_lines": 1,                    # 하위 문항 사이 빈 줄 수 (None이면 양식 그대로)
-    "front_body": {"size": None, "align": "", "keyword_mark": False},  # 앞쪽 박스 아래 칸
+    # 앞쪽 박스 아래 칸. hide_order: 순서 문항이 있는 지문은 학생용에서 내용을 비운다('↓'만 남김 — 원래 순서의 흐름이 정답이 되므로)
+    "front_body": {"size": None, "align": "", "keyword_mark": False, "hide_order": True},
     "box_align": {},                   # {칸 주소: LEFT|CENTER|RIGHT|JUSTIFY} — 제목 줄 아래 내용 줄에 적용
     "box_line_spacing": {},            # {칸 주소: 줄간격 %} — 칸의 모든 줄
     "box_title_font": {},              # {칸 주소: True} — 내용 줄 글꼴을 제목 줄(<조 건> 등) 글꼴로
@@ -252,6 +253,12 @@ def boxes(form: dict[str, Any]) -> list[dict[str, Any]]:
 # ---------------------------------------------------------------- 채우기
 
 ANSWER_RE = re.compile(r"\{\{([!?]?)(.+?)\}\}", re.S)
+
+
+def has_order_item(st: dict[str, Any]) -> bool:
+    """세트에 글의 순서 문항이 있는지 (있으면 지문이 (A)~(D)로 섞여 있다)."""
+
+    return any("순서" in (it.get("type") or "") for it in st.get("items") or [])
 
 
 def render_answers(text: str, teacher: bool, hidden_style: list[str] | None = None) -> str:
@@ -595,6 +602,8 @@ def build_form(
             cells = {(r, c): tc for r, c, tc in _cells(tbl)}
             st = sets[idx] if idx < len(sets) else None
             fills = {k: render_answers(v, teacher, st_cfg["hidden_style"]) for k, v in ((st or {}).get("layout") or {}).get("fills", {}).items()}
+            if not teacher and fb.get("hide_order") and st and has_order_item(st) and "f.body" in fills:
+                fills["f.body"] = "\n".join(ln if ln.strip() == "↓" else "" for ln in fills["f.body"].split("\n"))
             head, body = cells.get(tuple(box["head"])), cells.get(tuple(box["body"]))
             if head is not None:
                 _fill_cell(head, fills.get("f.head", f"**[{n}]**") if st else "", b)

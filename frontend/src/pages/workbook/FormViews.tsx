@@ -165,6 +165,11 @@ export function FormStyleCard({ wb, onSave, saving }: { wb: Workbook; onSave: (s
                   onChange={(e) => setSt({ ...st, front_body: { ...st.front_body, keyword_mark: e.target.checked } })} />
                 각 줄의 핵심어를 숨긴 정답 서식으로 (학생용은 빈칸 채우기)
               </label>
+              <label className="mt-2 flex items-center gap-2 text-sm">
+                <input type="checkbox" className="size-4 accent-brand-600" checked={st.front_body.hide_order}
+                  onChange={(e) => setSt({ ...st, front_body: { ...st.front_body, hide_order: e.target.checked } })} />
+                글의 순서 문항이 있는 지문은 학생용에서 내용을 비우기 ('↓'만 남김)
+              </label>
             </div>
           )}
           <div className="rounded-lg border border-slate-100 p-3">

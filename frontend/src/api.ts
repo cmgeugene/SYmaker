@@ -168,7 +168,7 @@ export interface FormStyle {
   header_highlight: boolean
   hidden_style: ('highlight' | 'bold' | 'underline' | 'white')[]
   gap_lines: number | null
-  front_body: { size: number | null; align: Align; keyword_mark: boolean }
+  front_body: { size: number | null; align: Align; keyword_mark: boolean; hide_order: boolean }
   box_align: Record<string, Align>
   box_line_spacing: Record<string, number> // 칸 주소 → 줄간격 %
   box_title_font: Record<string, boolean> // 칸 주소 → 내용 줄 글꼴을 제목 줄 글꼴로
@@ -180,7 +180,7 @@ export const FORM_STYLE_DEFAULT: FormStyle = {
   header_highlight: true,
   hidden_style: ['highlight', 'bold', 'white'],
   gap_lines: 1,
-  front_body: { size: null, align: '', keyword_mark: false },
+  front_body: { size: null, align: '', keyword_mark: false, hide_order: true },
   box_align: {},
   box_line_spacing: {},
   box_title_font: {},
